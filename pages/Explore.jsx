@@ -1,19 +1,24 @@
 import React, { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom"; 
 import { fetchMovies } from "../api/moviesApi";
 import { useWatchlist } from "../context/WatchlistContext";
+import { useAuth } from "../context/AuthContext";
 import MovieCard from "../components/MovieCard";
 
 function Explore() {
-  const { addMovie, isInWatchlist } = useWatchlist();
+  const { addMovie, isInWatchlist } = useWatchlist(); 
+  const { isLoggedIn } = useAuth(); 
+  const navigate = useNavigate(); 
   
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedGenre, setSelectedGenre] = useState("همه");
+  const [searchTerm, setSearchTerm] = useState(""); 
+  const [selectedGenre, setSelectedGenre] = useState("همه"); 
   const [showToast, setShowToast] = useState(false);
-  const searchInputRef = useRef(null);
+  const searchInputRef = useRef(null); 
+
   const { data: movies, isLoading, isError } = useQuery({
-    queryKey: ["movies"], 
-    queryFn: fetchMovies,  
+    queryKey: ["movies"],
+    queryFn: fetchMovies,
   });
 
   const genres = ["همه", "sci-fi", "comedy", "action", "drama", "crime"];
@@ -23,85 +28,71 @@ function Explore() {
     return movies.filter((movie) => {
       const matchesSearch = movie.title.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesGenre = selectedGenre === "همه" || movie.genre === selectedGenre;
-      return matchesSearch && matchesGenre; 
+      return matchesSearch && matchesGenre;
     });
   }, [movies, searchTerm, selectedGenre]);
 
   const handleAddWatchlist = useCallback((movie) => {
-    addMovie(movie); 
-    setShowToast(true);
-    
-    setTimeout(() => {
-      setShowToast(false);
-    }, 2000);
+    if (!isLoggedIn) {
+      navigate("/login");
+      return;
+    }
 
+    addMovie(movie);
+    setShowToast(true); 
+    setTimeout(() => setShowToast(false), 2000); 
+    
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, [addMovie]);
+  }, [addMovie, isLoggedIn, navigate]);
 
-  if (isLoading) return <div style={{ padding: "20px", textRight: "center" }}>... در حال بارگذاری لیست فیلم‌ها</div>;
+  if (isLoading) return <div style={{ padding: "20px" }}>... در حال بارگذاری</div>;
   
-  if (isError) return <div style={{ padding: "20px", color: "red" }}>خطا در دریافت اطلاعات فیلم‌ها از API</div>;
+  if (isError) return <div style={{ padding: "20px", color: "red" }}>خطا در دریافت اطلاعات</div>;
 
   return (
     <div style={{ padding: "20px" }}>
       {showToast && (
-        <div style={{ backgroundColor: "#ffeb3b", padding: "10px", marginBottom: "15px", borderRadius: "4px", fontWeight: "bold" }}>
-          فیلم به واچ لیست اضافه شد! (پیام موقت ۲ ثانیه‌ای)
+        <div style={{ backgroundColor: "#ffeb3b", padding: "10px", marginBottom: "15px" }}>
+          فیلم به واچ لیست اضافه شد!
         </div>
       )}
-      <div style={{ marginBottom: "20px" }}>
-        <input
-          ref={searchInputRef} 
-          type="text"
-          placeholder="جستجو بر اساس نام فیلم..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          autoFocus 
-          style={{ padding: "10px", width: "100%", maxWidth: "400px", fontSize: "16px" }}
-        />
-      </div>
-
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
-        {genres.map((genre) => (
-          <button
-            key={genre}
-            onClick={() => setSelectedGenre(genre)}
-            style={{
-              padding: "8px 15px",
-              cursor: "pointer",
-              backgroundColor: selectedGenre === genre ? "#ffeb3b" : "#eee",
-              border: "1px solid #ccc",
-              borderRadius: "4px"
-            }}
+      
+      <input
+        ref={searchInputRef}
+        type="text"
+        placeholder="جستجو..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        style={{ padding: "8px", width: "100%", maxWidth: "300px", marginBottom: "15px" }}
+      />
+      
+      <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+        {genres.map((g) => (
+          <button 
+            key={g} 
+            onClick={() => setSelectedGenre(g)} 
+            style={{ backgroundColor: selectedGenre === g ? "#ffeb3b" : "#eee", border: "1px solid #ccc", padding: "5px 10px", cursor: "pointer" }}
           >
-            {genre}
+            {g}
           </button>
         ))}
       </div>
-
-      <p style={{ fontWeight: "bold" }}>
-        نمایش {filteredMovies.length} فیلم از {movies?.length} فیلم موجود
-      </p>
-
+      
+      <p>نمایش {filteredMovies.length} فیلم از {movies?.length} فیلم</p>
+      
       {filteredMovies.length === 0 ? (
-        <div style={{ padding: "20px", fontStyle: "italic", color: "#666" }}>هیچ فیلمی پیدا نشد.</div>
+        <div>هیچ فیلمی پیدا نشد</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {filteredMovies.map((movie) => {
-            const added = isInWatchlist(movie.id);
-            return (
-              <MovieCard
-                key={movie.id}
-                movie={movie}
-                onAction={handleAddWatchlist}
-                actionLabel={added ? "در لیست" : "افزودن"}
-                isInWatchlistPage={false}
-              />
-            );
-          })}
-        </div>
+        filteredMovies.map((movie) => (
+          <MovieCard 
+            key={movie.id} 
+            movie={movie} 
+            onAction={handleAddWatchlist} 
+            actionLabel={isInWatchlist(movie.id) ? "در لیست" : "افزودن"} 
+          />
+        ))
       )}
     </div>
   );
